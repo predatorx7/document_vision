@@ -8,10 +8,11 @@ import re
 import multiprocessing
 from sys import argv
 from PIL import Image
-import pytesseract
 from pdf2image import convert_from_path
 import docx
-from pytesseract.pytesseract import Output
+import cv2
+import numpy as np
+import pytesseract
 
 __cpu_count__ = multiprocessing.cpu_count()
 
@@ -37,6 +38,7 @@ def timedTask(callback):
     print(f"{callback} executed in {elapsed:0.2f} seconds.")
     return result
 
+
 def valid_xml_char_ordinal(c):
     codepoint = ord(c)
     # conditions ordered by presumed frequency
@@ -45,7 +47,8 @@ def valid_xml_char_ordinal(c):
         codepoint in (0x9, 0xA, 0xD) or
         0xE000 <= codepoint <= 0xFFFD or
         0x10000 <= codepoint <= 0x10FFFF
-        )
+    )
+
 
 def makeXMLCompatible(input_string):
     return ''.join(c for c in input_string if valid_xml_char_ordinal(c))
@@ -55,16 +58,38 @@ class OutputMode(enum.Enum):
     docx = 0
     txt = 1
 
+
 output_file_name = None
+improve_image = False
+
+
+def improve_image_file(image_file_path):
+    img = cv2.imread(image_file_path)
+
+    img = cv2.resize(img, None, fx=2, fy=2)
+
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Not good for multitasking
+    cv2.imwrite('.tmp.png', img)
+
+    return img
+
 
 class DocumentVision:
     def performDetectionOnImage(filename: str):
-        image = Image.open(filename)
-        return pytesseract.image_to_string(image, lang='eng')
+        image = None
+        config = ''
+        if improve_image:
+            image = improve_image_file(filename)
+            psm = 11
+            config = '--oem 3 --psm %d' % psm
+        else:
+            image = Image.open(filename)
+        return pytesseract.image_to_string(image, lang='eng', config=config)
 
     def detectImagesToTxt(imageFilePaths: list):
         pageNumber = 0
-        folderPath = os.path.dirname(imageFilePaths[0])
         detectionResult = f'{output_file_name}.txt'
 
         print(f'Writing detection result in {detectionResult}\n')
@@ -180,6 +205,7 @@ def detectFiles(folderPath: str, outputmode: OutputMode):
     else:
         DocumentVision.detectImagesToTxt(imageFilePaths)
 
+
 def main():
     option = argv[1]
     outputmode = None
@@ -196,6 +222,10 @@ def main():
         if 's' in option:
             print('Skipping pdf to images conversion')
             doPdfToJpg = False
+        if 'x' in option:
+            print('Will apply improvements in hope to increase accuracy')
+            global improve_image
+            improve_image = True
     else:
         print('output set to txt mode')
         outputmode = OutputMode.txt
@@ -206,7 +236,7 @@ def main():
         detectFiles(targetFilePath, outputmode)
     else:
         DocumentVision.detect(targetFilePath, outputmode)
-    
-        
+
+
 if __name__ == "__main__":
     main()
