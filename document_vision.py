@@ -82,7 +82,7 @@ class DocumentVision:
         config = ''
         if improve_image:
             image = improve_image_file(filename)
-            psm = 11
+            psm = 5
             config = '--oem 3 --psm %d' % psm
         else:
             image = Image.open(filename)
@@ -145,7 +145,7 @@ class DocumentVision:
 
         def pdfConversionTask():
             return convert_from_path(
-                filename, 500, thread_count=thread_count)
+                filename, 200, thread_count=thread_count)
 
         pdfpages = timedTask(pdfConversionTask)
 
